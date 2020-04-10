@@ -357,12 +357,14 @@ public class Leader {
 
             // Start thread that waits for connection requests from 
             // new followers.
+            // 新follower接入的处理线程
             cnxAcceptor = new LearnerCnxAcceptor();
             cnxAcceptor.start();
             
             readyToStart = true;
+            // 更新epoch, 一直阻塞更新到有一半以上的participant参与更新
             long epoch = getEpochToPropose(self.getId(), self.getAcceptedEpoch());
-            
+            // 设置zxid,高32位为epoch,低32位从0开始
             zk.setZxid(ZxidUtils.makeZxid(epoch, 0));
             
             synchronized(this){
@@ -379,13 +381,15 @@ public class Leader {
             }
             outstandingProposals.put(newLeaderProposal.packet.getZxid(), newLeaderProposal);
             newLeaderProposal.ackSet.add(self.getId());
-            
+
+            // 等到一半以上follower epoch ack
             waitForEpochAck(self.getId(), leaderStateSummary);
             self.setCurrentEpoch(epoch);
 
             // We have to get at least a majority of servers in sync with
             // us. We do this by waiting for the NEWLEADER packet to get
             // acknowledged
+            // 等待一半以上的follower的NEWLEADER确认
             while (!self.getQuorumVerifier().containsQuorum(newLeaderProposal.ackSet)){
             //while (newLeaderProposal.ackCount <= self.quorumPeers.size() / 2) {
                 if (self.tick > self.initLimit) {
@@ -444,7 +448,9 @@ public class Leader {
             // We ping twice a tick, so we only update the tick every other
             // iteration
             boolean tickSkip = true;
-    
+
+            // 阻塞在这里，进行ping，就是心跳
+            // 如果发现正常ping pong的节点不足一半，停止当前leader,重新开始一轮新的leader选举
             while (true) {
                 Thread.sleep(self.tickTime / 2);
                 if (!tickSkip) {
@@ -563,13 +569,14 @@ public class Leader {
                     Long.toHexString(zxid), followerAddr);
             return;
         }
-        
+        // 记录返回ack的节点
         p.ackSet.add(sid);
         if (LOG.isDebugEnabled()) {
             LOG.debug("Count for zxid: 0x{} is {}",
                     Long.toHexString(zxid), p.ackSet.size());
         }
-        if (self.getQuorumVerifier().containsQuorum(p.ackSet)){             
+        // 超过一半的follower返回ack
+        if (self.getQuorumVerifier().containsQuorum(p.ackSet)){
             if (zxid != lastCommitted+1) {
                 LOG.warn("Commiting zxid 0x{} from {} not first!",
                         Long.toHexString(zxid), followerAddr);
@@ -597,6 +604,7 @@ public class Leader {
                 lastCommitted = zxid;
                 LOG.info("Have quorum of supporters; starting up and setting last processed zxid: 0x{}",
                         Long.toHexString(zk.getZxid()));
+                // 启动zk服务
                 zk.startup();
                 zk.getZKDatabase().setlastProcessedZxid(zk.getZxid());
             }
@@ -814,6 +822,7 @@ public class Leader {
             long lastSeenZxid) {
         // Queue up any outstanding requests enabling the receipt of
         // new requests
+        // 把所有没有完成的请求加入到队列
         if (lastProposed > lastSeenZxid) {
             for (Proposal p : toBeApplied) {
                 if (p.packet.getZxid() <= lastSeenZxid) {

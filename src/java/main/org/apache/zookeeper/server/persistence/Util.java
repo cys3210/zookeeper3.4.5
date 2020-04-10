@@ -214,8 +214,10 @@ public class Util {
             long preAllocSize) throws IOException{
         long position = f.getChannel().position();
         if (position + 4096 >= currentSize) {
+            // 预分配大小
             currentSize = currentSize + preAllocSize;
             fill.position(0);
+            // 直接在预分配文件大小后面写一个 0, 使得当前文件有6M
             f.getChannel().write(fill, currentSize-fill.remaining());
         }
         return currentSize;

@@ -215,6 +215,7 @@ public class NIOServerCnxn extends ServerCnxn {
                 return;
             }
             if (k.isReadable()) {
+                // incomingBuffer默认4个字节先读长度
                 int rc = sock.read(incomingBuffer);
                 if (rc < 0) {
                     throw new EndOfStreamException(
@@ -222,16 +223,22 @@ public class NIOServerCnxn extends ServerCnxn {
                             + Long.toHexString(sessionId)
                             + ", likely client has closed socket");
                 }
+                // buffer没有剩余空间了，说明数据已经准备完毕
                 if (incomingBuffer.remaining() == 0) {
                     boolean isPayload;
+                    // 首先读4字节的长度
                     if (incomingBuffer == lenBuffer) { // start of next request
+                        // 准备读 limit=position,position=0
                         incomingBuffer.flip();
+                        // 根据payload长度分配一个新的incomingBuffer
                         isPayload = readLength(k);
                         incomingBuffer.clear();
                     } else {
                         // continuation
+                        // 真正的内容已经准备完毕
                         isPayload = true;
                     }
+                    // 读取内容
                     if (isPayload) { // not the case for 4letterword
                         readPayload();
                     }
@@ -915,6 +922,7 @@ public class NIOServerCnxn extends ServerCnxn {
     private boolean readLength(SelectionKey k) throws IOException {
         // Read the length, now get the buffer
         int len = lenBuffer.getInt();
+        // 没有初始化 || 4个字母的单词(zk自己的一些命令查询一些状态之类的) return false 长度读取失败
         if (!initialized && checkFourLetterWord(sk, len)) {
             return false;
         }

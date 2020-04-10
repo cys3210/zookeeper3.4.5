@@ -98,21 +98,25 @@ public class QuorumPeerMain {
     {
         QuorumPeerConfig config = new QuorumPeerConfig();
         if (args.length == 1) {
+            // 解析zoo.cfg
             config.parse(args[0]);
         }
 
         // Start and schedule the the purge task
+        // 定期清理日志和快照
         DatadirCleanupManager purgeMgr = new DatadirCleanupManager(config
                 .getDataDir(), config.getDataLogDir(), config
                 .getSnapRetainCount(), config.getPurgeInterval());
         purgeMgr.start();
 
         if (args.length == 1 && config.servers.size() > 0) {
+            // 集群
             runFromConfig(config);
         } else {
             LOG.warn("Either no config or no quorum defined in config, running "
                     + " in standalone mode");
             // there is only server in the quorum -- run as standalone
+            // 单机
             ZooKeeperServerMain.main(args);
         }
     }
@@ -126,22 +130,31 @@ public class QuorumPeerMain {
   
       LOG.info("Starting quorum peer");
       try {
+          // 默认 nio server, 可以使用 netty server
           ServerCnxnFactory cnxnFactory = ServerCnxnFactory.createFactory();
           cnxnFactory.configure(config.getClientPortAddress(),
                                 config.getMaxClientCnxns());
-  
+
+          // 一个quorumPeer代表一个节点
           quorumPeer = new QuorumPeer();
           quorumPeer.setClientPortAddress(config.getClientPortAddress());
+          // 事务日志，快照日志
           quorumPeer.setTxnFactory(new FileTxnSnapLog(
-                      new File(config.getDataLogDir()),
-                      new File(config.getDataDir())));
+                      new File(config.getDataLogDir()), // 事务日志文件夹
+                      new File(config.getDataDir())));  // 快照文件夹
+          // 配置文件中读取zk集群信息
           quorumPeer.setQuorumPeers(config.getServers());
+          // 选举算法，默认3
           quorumPeer.setElectionType(config.getElectionAlg());
+          // 当前zk server id
           quorumPeer.setMyid(config.getServerId());
+          // zk单位时间，集群间心跳时间
           quorumPeer.setTickTime(config.getTickTime());
           quorumPeer.setMinSessionTimeout(config.getMinSessionTimeout());
           quorumPeer.setMaxSessionTimeout(config.getMaxSessionTimeout());
+          // 初始化超时时间
           quorumPeer.setInitLimit(config.getInitLimit());
+          // 同步超时时间
           quorumPeer.setSyncLimit(config.getSyncLimit());
           quorumPeer.setQuorumVerifier(config.getQuorumVerifier());
           quorumPeer.setCnxnFactory(cnxnFactory);

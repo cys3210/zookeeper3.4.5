@@ -112,6 +112,7 @@ public class SerializeUtils {
 
     public static void deserializeSnapshot(DataTree dt,InputArchive ia,
             Map<Long, Integer> sessions) throws IOException {
+        // 开始反序列化session
         int count = ia.readInt("count");
         while (count > 0) {
             long id = ia.readLong("id");
@@ -124,6 +125,7 @@ public class SerializeUtils {
             }
             count--;
         }
+        // 反序列化节点树
         dt.deserialize(ia, "tree");
     }
 

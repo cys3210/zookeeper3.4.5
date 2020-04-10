@@ -254,6 +254,7 @@ public class Learner {
         /*
          * Send follower info, including last zxid and sid
          */
+        // 发送follower相关信息，包括zxid和sid
     	long lastLoggedZxid = self.getLastLoggedZxid();
         QuorumPacket qp = new QuorumPacket();                
         qp.setType(pktType);
@@ -262,14 +263,17 @@ public class Learner {
         /*
          * Add sid to payload
          */
+        // follower协议版本 0x10000
         LearnerInfo li = new LearnerInfo(self.getId(), 0x10000);
         ByteArrayOutputStream bsid = new ByteArrayOutputStream();
         BinaryOutputArchive boa = BinaryOutputArchive.getArchive(bsid);
         boa.writeRecord(li, "LearnerInfo");
         qp.setData(bsid.toByteArray());
-        
+
+        // 发送 followerInfo 到leader
         writePacket(qp, true);
-        readPacket(qp);        
+        readPacket(qp);
+        // 收到leader返回的leaderInfo
         final long newEpoch = ZxidUtils.getEpochFromZxid(qp.getZxid());
 		if (qp.getType() == Leader.LEADERINFO) {
         	// we are connected to a 1.0 server so accept the new epoch and read the next packet
@@ -277,9 +281,11 @@ public class Learner {
         	byte epochBytes[] = new byte[4];
         	final ByteBuffer wrappedEpochBytes = ByteBuffer.wrap(epochBytes);
         	if (newEpoch > self.getAcceptedEpoch()) {
+        	    // 正常情况， 新的epoch比较大
         		wrappedEpochBytes.putInt((int)self.getCurrentEpoch());
         		self.setAcceptedEpoch(newEpoch);
         	} else if (newEpoch == self.getAcceptedEpoch()) {
+        	    // 还有其他拥有比较大epoch的节点存在, epoch返回-1
         		// since we have already acked an epoch equal to the leaders, we cannot ack
         		// again, but we still need to send our lastZxid to the leader so that we can
         		// sync with it if it does assume leadership of the epoch.
@@ -288,6 +294,7 @@ public class Learner {
         	} else {
         		throw new IOException("Leaders epoch, " + newEpoch + " is less than accepted epoch, " + self.getAcceptedEpoch());
         	}
+        	// 返回leaderInfo的ack
         	QuorumPacket ackNewEpoch = new QuorumPacket(Leader.ACKEPOCH, lastLoggedZxid, epochBytes, null);
         	writePacket(ackNewEpoch, true);
             return ZxidUtils.makeZxid(newEpoch, 0);
@@ -321,7 +328,7 @@ public class Learner {
             if (qp.getType() == Leader.DIFF) {
                 LOG.info("Getting a diff from the leader 0x" + Long.toHexString(qp.getZxid()));                
             }
-            else if (qp.getType() == Leader.SNAP) {
+            else if (qp.getType() == Leader.SNAP) { // 等待leader发送快照
                 LOG.info("Getting a snapshot from leader");
                 // The leader is going to dump the database
                 // clear our own database and read
@@ -333,6 +340,7 @@ public class Learner {
                     throw new IOException("Missing signature");                   
                 }
             } else if (qp.getType() == Leader.TRUNC) {
+                // 截断多出leader的数据
                 //we need to truncate the log to the lastzxid of the leader
                 LOG.warn("Truncating log to get in sync with the leader 0x"
                         + Long.toHexString(qp.getZxid()));
@@ -351,7 +359,9 @@ public class Learner {
                 System.exit(13);
 
             }
+            // 设置zk服务最大zxid
             zk.getZKDatabase().setlastProcessedZxid(qp.getZxid());
+            // 创建会话跟踪器， follower是LearnerSessionTracker
             zk.createSessionTracker();            
             
             long lastQueued = 0;
@@ -379,6 +389,7 @@ public class Learner {
                     packetsNotCommitted.add(pif);
                     break;
                 case Leader.COMMIT:
+                    // 接收leader提交上来的log
                     if (!snapshotTaken) {
                         pif = packetsNotCommitted.peekFirst();
                         if (pif.hdr.getZxid() != qp.getZxid()) {
@@ -407,6 +418,7 @@ public class Learner {
                     zk.takeSnapshot();
                     self.setCurrentEpoch(newEpoch);
                     snapshotTaken = true;
+                    // new leader ack
                     writePacket(new QuorumPacket(Leader.ACK, newLeaderZxid, null, null), true);
                     break;
                 }
@@ -415,6 +427,7 @@ public class Learner {
         ack.setZxid(ZxidUtils.makeZxid(newEpoch, 0));
         writePacket(ack, true);
         sock.setSoTimeout(self.tickTime * self.syncLimit);
+        // 同步完成，开启zk服务
         zk.startup();
         // We need to log the stuff that came in between the snapshot and the uptodate
         if (zk instanceof FollowerZooKeeperServer) {

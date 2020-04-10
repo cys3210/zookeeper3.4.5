@@ -87,6 +87,7 @@ public class SessionTrackerImpl extends Thread implements SessionTracker {
 
     private long roundToInterval(long time) {
         // We give a one interval grace period
+        // 将时间转化为最接近原值的expirationInterval的倍数
         return (time / expirationInterval + 1) * expirationInterval;
     }
 
@@ -96,6 +97,7 @@ public class SessionTrackerImpl extends Thread implements SessionTracker {
     {
         super("SessionTracker");
         this.expirer = expirer;
+        // session过期时间就是tickTime
         this.expirationInterval = tickTime;
         this.sessionsWithTimeout = sessionsWithTimeout;
         nextExpirationTime = roundToInterval(System.currentTimeMillis());

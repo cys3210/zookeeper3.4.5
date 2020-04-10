@@ -90,6 +90,7 @@ import org.slf4j.LoggerFactory;
 public class FileTxnLog implements TxnLog {
     private static final Logger LOG;
 
+    // 64m
     static long preAllocSize =  65536 * 1024;
 
     public final static int TXNLOG_MAGIC =
@@ -212,6 +213,9 @@ public class FileTxnLog implements TxnLog {
                currentSize = fos.getChannel().position();
                streamsToFlush.add(fos);
             }
+            // 预分配事务日志磁盘大小，默认6m。
+            // 1.可以让文件尽可能占用连续的磁盘扇区，减小此后磁盘寻址开销
+            // 2.迅速占用磁盘，避免此后磁盘空间不足
             padFile(fos);
             byte[] buf = Util.marshallTxnEntry(hdr, txn);
             if (buf == null || buf.length == 0) {

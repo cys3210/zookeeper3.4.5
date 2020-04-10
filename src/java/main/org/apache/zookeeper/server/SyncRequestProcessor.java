@@ -90,6 +90,7 @@ public class SyncRequestProcessor extends Thread implements RequestProcessor {
 
             // we do this in an attempt to ensure that not all of the servers
             // in the ensemble take a snapshot at the same time
+            // 避免所有zk服务一起开始快照
             int randRoll = r.nextInt(snapCount/2);
             while (true) {
                 Request si = null;
@@ -109,6 +110,7 @@ public class SyncRequestProcessor extends Thread implements RequestProcessor {
                     // track the number of records written to the log
                     if (zks.getZKDatabase().append(si)) {
                         logCount++;
+                        // 开始快照, 默认100000条左右
                         if (logCount > (snapCount / 2 + randRoll)) {
                             randRoll = r.nextInt(snapCount/2);
                             // roll the log
@@ -142,6 +144,7 @@ public class SyncRequestProcessor extends Thread implements RequestProcessor {
                         continue;
                     }
                     toFlush.add(si);
+                    // 事务日志超过1000条就刷新到磁盘上
                     if (toFlush.size() > 1000) {
                         flush(toFlush);
                     }

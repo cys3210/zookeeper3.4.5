@@ -32,10 +32,15 @@ public class Vote {
     }
     
     public Vote(long id, long zxid, long peerEpoch) {
+        // zk server id
         this.id = id;
+        // zxid
         this.zxid = zxid;
+        // 选举 epoch
         this.electionEpoch = -1;
+        // 当前服务的epoch
         this.peerEpoch = peerEpoch;
+        // 初始化服务状态 looking
         this.state = ServerState.LOOKING;
     }
 

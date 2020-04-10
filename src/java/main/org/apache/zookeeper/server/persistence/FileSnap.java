@@ -81,12 +81,17 @@ public class FileSnap implements SnapShot {
             CheckedInputStream crcIn = null;
             try {
                 LOG.info("Reading snapshot " + snap);
+                // 缓冲
                 snapIS = new BufferedInputStream(new FileInputStream(snap));
+                // Adler32数据校验
                 crcIn = new CheckedInputStream(snapIS, new Adler32());
+                // 通过DataInputStream封装成一个二进制输入组件
                 InputArchive ia = BinaryInputArchive.getArchive(crcIn);
+                // 开始反序列化
                 deserialize(dt,sessions, ia);
                 long checkSum = crcIn.getChecksum().getValue();
                 long val = ia.readLong("val");
+                // Adler32校验未通过
                 if (val != checkSum) {
                     throw new IOException("CRC corruption in snapshot :  " + snap);
                 }
@@ -104,6 +109,7 @@ public class FileSnap implements SnapShot {
         if (!foundValid) {
             throw new IOException("Not able to find valid snapshots in " + snapDir);
         }
+        // 设置最后一个zxid
         dt.lastProcessedZxid = Util.getZxidFromName(snap.getName(), "snapshot");
         return dt.lastProcessedZxid;
     }
@@ -117,6 +123,7 @@ public class FileSnap implements SnapShot {
      */
     public void deserialize(DataTree dt, Map<Long, Integer> sessions,
             InputArchive ia) throws IOException {
+        // 首先发序列化header
         FileHeader header = new FileHeader();
         header.deserialize(ia, "fileheader");
         if (header.getMagic() != SNAP_MAGIC) {

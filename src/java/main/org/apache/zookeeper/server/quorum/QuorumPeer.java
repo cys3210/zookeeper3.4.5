@@ -406,18 +406,23 @@ public class QuorumPeer extends Thread implements QuorumStats.Provider {
     
     @Override
     public synchronized void start() {
+        // 从快照，事务日志中加载数据
         loadDataBase();
-        cnxnFactory.start();        
+        // 开启连接服务,负责接收客户端的数据
+        cnxnFactory.start();
+        // leader选举
         startLeaderElection();
         super.start();
     }
 
 	private void loadDataBase() {
 		try {
+		    // 从快照和事务日志中恢复数据
             zkDb.loadDataBase();
 
             // load the epochs
             long lastProcessedZxid = zkDb.getDataTree().lastProcessedZxid;
+            // 最后一个zxid的epoch
     		long epochOfZxid = ZxidUtils.getEpochFromZxid(lastProcessedZxid);
             try {
             	currentEpoch = readLongFromFile(CURRENT_EPOCH_FILENAME);
@@ -478,6 +483,7 @@ public class QuorumPeer extends Thread implements QuorumStats.Provider {
         if (myQuorumAddr == null) {
             throw new RuntimeException("My id " + myid + " not in the peer list");
         }
+        // 选举算法，默认electionType == 3
         if (electionType == 0) {
             try {
                 udpSocket = new DatagramSocket(myQuorumAddr.getPort());
@@ -582,6 +588,7 @@ public class QuorumPeer extends Thread implements QuorumStats.Provider {
             le = new AuthFastLeaderElection(this, true);
             break;
         case 3:
+            // 默认选举算法
             qcm = new QuorumCnxManager(this);
             QuorumCnxManager.Listener listener = qcm.listener;
             if(listener != null){
@@ -634,6 +641,7 @@ public class QuorumPeer extends Thread implements QuorumStats.Provider {
 
         LOG.debug("Starting quorum peer");
         try {
+            // jmx 相关
             jmxQuorumBean = new QuorumBean(this);
             MBeanRegistry.getInstance().register(jmxQuorumBean, null);
             for(QuorumServer s: getView().values()){
@@ -667,6 +675,7 @@ public class QuorumPeer extends Thread implements QuorumStats.Provider {
             while (running) {
                 switch (getPeerState()) {
                 case LOOKING:
+                    // 当前正在处于选举状态
                     LOG.info("LOOKING");
 
                     if (Boolean.getBoolean("readonlymode.enabled")) {
@@ -690,6 +699,7 @@ public class QuorumPeer extends Thread implements QuorumStats.Provider {
                                     // lower-bound grace period to 2 secs
                                     sleep(Math.max(2000, tickTime));
                                     if (ServerState.LOOKING.equals(getPeerState())) {
+                                        // 开启只读zk服务
                                         roZk.startup();
                                     }
                                 } catch (InterruptedException e) {
@@ -701,6 +711,7 @@ public class QuorumPeer extends Thread implements QuorumStats.Provider {
                         };
                         try {
                             roZkMgr.start();
+                            // 设置当前自己的投票, 一般使用 FastLeaderElection策略
                             setCurrentVote(makeLEStrategy().lookForLeader());
                         } catch (Exception e) {
                             LOG.warn("Unexpected exception",e);

@@ -127,7 +127,10 @@ public class FileTxnSnapLog {
      */
     public long restore(DataTree dt, Map<Long, Integer> sessions, 
             PlayBackListener listener) throws IOException {
+        // 反序列化快照日志
         snapLog.deserialize(dt, sessions);
+
+        // 接着快照最后的zxid, 从事务日志读取数据
         FileTxnLog txnLog = new FileTxnLog(dataDir);
         TxnIterator itr = txnLog.read(dt.lastProcessedZxid+1);
         long highestZxid = dt.lastProcessedZxid;
@@ -157,6 +160,7 @@ public class FileTxnSnapLog {
             if (!itr.next()) 
                 break;
         }
+        // 最大的zxid
         return highestZxid;
     }
     

@@ -68,7 +68,9 @@ public class Follower extends Learner{
         try {
             InetSocketAddress addr = findLeader();            
             try {
+                // 连接到leader
                 connectToLeader(addr);
+                // 注册到leader上去，完成握手协议开始进行follow/observe
                 long newEpochZxid = registerWithLeader(Leader.FOLLOWERINFO);
 
                 //check to see if the leader zxid is lower than ours
@@ -79,8 +81,10 @@ public class Follower extends Learner{
                             + " is less than our accepted epoch " + ZxidUtils.zxidToString(self.getAcceptedEpoch()));
                     throw new IOException("Error: Epoch of leader is lower");
                 }
+
                 syncWithLeader(newEpochZxid);                
                 QuorumPacket qp = new QuorumPacket();
+                // 进入读取leader广播的阶段
                 while (self.isRunning()) {
                     readPacket(qp);
                     processPacket(qp);

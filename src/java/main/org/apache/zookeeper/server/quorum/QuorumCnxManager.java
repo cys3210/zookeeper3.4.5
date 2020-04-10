@@ -176,6 +176,7 @@ public class QuorumCnxManager {
         DataOutputStream dout = null;
         try {
             // Sending id and challenge
+            // 发送sid, 让另一端的zk进行竞争,以大sid服务端，小sid客户端的形式保证连接不会重复
             dout = new DataOutputStream(sock.getOutputStream());
             dout.writeLong(self.getId());
             dout.flush();
@@ -192,6 +193,7 @@ public class QuorumCnxManager {
             closeSocket(sock);
             // Otherwise proceed with the connection
         } else {
+            // 开启 send receive 工作线程
             SendWorker sw = new SendWorker(sock, sid);
             RecvWorker rw = new RecvWorker(sock, sid, sw);
             sw.setRecv(rw);
@@ -232,12 +234,12 @@ public class QuorumCnxManager {
             // Read server id
             DataInputStream din = new DataInputStream(sock.getInputStream());
             sid = din.readLong();
+            // 连接的zk是否为observer
             if (sid == QuorumPeer.OBSERVER_ID) {
                 /*
                  * Choose identifier at random. We need a value to identify
                  * the connection.
                  */
-                
                 sid = observerCounter--;
                 LOG.info("Setting arbitrary identifier to observer: " + sid);
             }
@@ -248,6 +250,8 @@ public class QuorumCnxManager {
         }
         
         //If wins the challenge, then close the new connection.
+        // sid小于自己的客户端直接断开连接，然后自己作为客户端连接上去
+        // 即只能sid较大的客户端连接sid较小的服务, 避免重复连接
         if (sid < self.getId()) {
             /*
              * This replica might still believe that the connection to sid is
@@ -433,6 +437,7 @@ public class QuorumCnxManager {
      */
     private void setSockOpts(Socket sock) throws SocketException {
         sock.setTcpNoDelay(true);
+        // 读超时时间
         sock.setSoTimeout(self.tickTime * self.syncLimit);
     }
 
@@ -479,19 +484,23 @@ public class QuorumCnxManager {
             while((!shutdown) && (numRetries < 3)){
                 try {
                     ss = new ServerSocket();
+                    // 可重用端口
                     ss.setReuseAddress(true);
+                    // 选举用端口
                     int port = self.quorumPeers.get(self.getId()).electionAddr
                             .getPort();
                     InetSocketAddress addr = new InetSocketAddress(port);
                     LOG.info("My election bind port: " + addr.toString());
                     setName(self.quorumPeers.get(self.getId()).electionAddr
                             .toString());
+                    // 开启选举用serverSocket
                     ss.bind(addr);
                     while (!shutdown) {
                         Socket client = ss.accept();
                         setSockOpts(client);
                         LOG.info("Received connection request "
                                 + client.getRemoteSocketAddress());
+                        // 处理新的连接
                         receiveConnection(client);
                         numRetries = 0;
                     }
@@ -631,6 +640,8 @@ public class QuorumCnxManager {
             threadCnt.incrementAndGet();
             try {
                 /**
+                 * 为了避免上一次shutdown或退出线程导致last message没有正确发送，
+                 * 在这里做补偿
                  * If there is nothing in the queue to send, then we
                  * send the lastMessage to ensure that the last message
                  * was received by the peer. The message could be dropped
