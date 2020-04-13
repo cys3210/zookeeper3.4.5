@@ -412,6 +412,7 @@ public class Learner {
                         zk.takeSnapshot();
                         self.setCurrentEpoch(newEpoch);
                     }
+                    // leader通知数据已经可以开始使用了
                     self.cnxnFactory.setZooKeeperServer(zk);                
                     break outerLoop;
                 case Leader.NEWLEADER: // it will be NEWLEADER in v1.0
@@ -430,6 +431,7 @@ public class Learner {
         // 同步完成，开启zk服务
         zk.startup();
         // We need to log the stuff that came in between the snapshot and the uptodate
+        // 真正更新本地的log
         if (zk instanceof FollowerZooKeeperServer) {
             FollowerZooKeeperServer fzk = (FollowerZooKeeperServer)zk;
             for(PacketInFlight p: packetsNotCommitted) {
@@ -468,6 +470,7 @@ public class Learner {
         // Send back the ping with our session data
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
+        // 将此服务暂存的所有session(id,timeout)发送到leader
         HashMap<Long, Integer> touchTable = zk
                 .getTouchSnapshot();
         for (Entry<Long, Integer> entry : touchTable.entrySet()) {

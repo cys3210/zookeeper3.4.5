@@ -87,7 +87,7 @@ public class SessionTrackerImpl extends Thread implements SessionTracker {
 
     private long roundToInterval(long time) {
         // We give a one interval grace period
-        // 将时间转化为最接近原值的expirationInterval的倍数
+        // 将时间转化为最接近原值的expirationInterval(tick)的倍数
         return (time / expirationInterval + 1) * expirationInterval;
     }
 
@@ -148,6 +148,7 @@ public class SessionTrackerImpl extends Thread implements SessionTracker {
                     this.wait(nextExpirationTime - currentTime);
                     continue;
                 }
+                // 过期某一个过期时间的所有session
                 SessionSet set;
                 set = sessionSets.remove(nextExpirationTime);
                 if (set != null) {
@@ -176,11 +177,14 @@ public class SessionTrackerImpl extends Thread implements SessionTracker {
         if (s == null || s.isClosing()) {
             return false;
         }
+        // 转化过期时间为tick
         long expireTime = roundToInterval(System.currentTimeMillis() + timeout);
+        // 如果当前session的过期时间比更新的过期时间还大，就不用更新了
         if (s.tickTime >= expireTime) {
             // Nothing needs to be done
             return true;
         }
+        // 更新session, 加入到属于某一个tick的set中
         SessionSet set = sessionSets.get(s.tickTime);
         if (set != null) {
             set.sessions.remove(s);

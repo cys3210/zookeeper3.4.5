@@ -480,6 +480,7 @@ public class LearnerHandler extends Thread {
 
             /*
              * Wait until leader starts up
+             * 等待leaderZookeeperServer开启, 会在一半以上的quorum newLeader ack后开启
              */
             synchronized(leader.zk){
                 while(!leader.zk.isRunning() && !this.isInterrupted()){
@@ -489,7 +490,7 @@ public class LearnerHandler extends Thread {
             // Mutation packets will be queued during the serialize,
             // so we need to mark when the peer can actually start
             // using the data
-            //
+            // 通知follower同步完成，已经可以使用数据了
             queuedPackets.add(new QuorumPacket(Leader.UPTODATE, -1, null, null));
 
             // 接收其他节点发来的包
@@ -529,6 +530,7 @@ public class LearnerHandler extends Thread {
                     while (dis.available() > 0) {
                         long sess = dis.readLong();
                         int to = dis.readInt();
+                        // session校验，判断是否过期后更新过期时间
                         leader.zk.touch(sess, to);
                     }
                     break;
@@ -546,6 +548,7 @@ public class LearnerHandler extends Thread {
                             //set the session owner
                             // as the follower that
                             // owns the session
+                            // 更新当前session的所有者， 即当前客户端现在是属于此follower的
                             leader.zk.setOwner(id, this);
                         } catch (SessionExpiredException e) {
                             LOG.error("Somehow session " + Long.toHexString(id) + " expired right after being renewed! (impossible)", e);

@@ -467,9 +467,11 @@ public class Leader {
                     if (f.synced() && f.getLearnerType() == LearnerType.PARTICIPANT) {
                         syncedSet.add(f.getSid());
                     }
+                    // ping 所有的节点
                     f.ping();
                 }
 
+                // 检测是否仍有有一半以上的 PARTICIPANT存在，如果少于一半就退出zookeeper
               if (!tickSkip && !self.getQuorumVerifier().containsQuorum(syncedSet)) {
                 //if (!tickSkip && syncedCount < self.quorumPeers.size() / 2) {
                     // Lost quorum, shutdown

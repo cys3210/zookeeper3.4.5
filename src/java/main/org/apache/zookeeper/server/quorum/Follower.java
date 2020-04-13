@@ -81,12 +81,14 @@ public class Follower extends Learner{
                             + " is less than our accepted epoch " + ZxidUtils.zxidToString(self.getAcceptedEpoch()));
                     throw new IOException("Error: Epoch of leader is lower");
                 }
-
+                // 同步leader
                 syncWithLeader(newEpochZxid);                
                 QuorumPacket qp = new QuorumPacket();
                 // 进入读取leader广播的阶段
                 while (self.isRunning()) {
+                    // 从leader读取packet
                     readPacket(qp);
+                    // 处理packet
                     processPacket(qp);
                 }
             } catch (IOException e) {
@@ -112,7 +114,8 @@ public class Follower extends Learner{
      */
     protected void processPacket(QuorumPacket qp) throws IOException{
         switch (qp.getType()) {
-        case Leader.PING:            
+        case Leader.PING:
+            // 收到leader ping
             ping(qp);            
             break;
         case Leader.PROPOSAL:            
