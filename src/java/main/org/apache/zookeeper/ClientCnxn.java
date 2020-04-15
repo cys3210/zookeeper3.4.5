@@ -850,7 +850,9 @@ public class ClientCnxn {
                      + clientCnxnSocket.getRemoteSocketAddress()
                      + ", initiating session");
             isFirstConnect = false;
+            // 如果当前连接的server是read only的，那么sessionId指定为0
             long sessId = (seenRwServerBefore) ? sessionId : 0;
+            // 连接请求
             ConnectRequest conReq = new ConnectRequest(0, lastZxid,
                     sessionTimeout, sessId, sessionPasswd);
             synchronized (outgoingQueue) {
@@ -858,6 +860,7 @@ public class ClientCnxn {
                 // Only send if there's a pending watch
                 // TODO: here we have the only remaining use of zooKeeper in
                 // this class. It's to be eliminated!
+                // 如果需要自动监视重置事件
                 if (!disableAutoWatchReset) {
                     List<String> dataWatches = zooKeeper.getDataWatches();
                     List<String> existWatches = zooKeeper.getExistWatches();
@@ -876,14 +879,17 @@ public class ClientCnxn {
                     }
                 }
 
+                // 权限认证
                 for (AuthData id : authInfo) {
                     outgoingQueue.addFirst(new Packet(new RequestHeader(-4,
                             OpCode.auth), null, new AuthPacket(0, id.scheme,
                             id.data), null, null));
                 }
+                // 建立连接，创建session
                 outgoingQueue.addFirst(new Packet(null, null, conReq,
                             null, null, readOnly));
             }
+            // 注册读写事件
             clientCnxnSocket.enableReadWriteOnly();
             if (LOG.isDebugEnabled()) {
                 LOG.debug("Session establishment request sent on "
@@ -953,8 +959,9 @@ public class ClientCnxn {
                   Watcher.Event.KeeperState.AuthFailed, null));
                 saslLoginFailed = true;
             }
+            // 记录日志
             logStartConnect(addr);
-
+            // 正在的连接到server, 注册读写状态并做好准备
             clientCnxnSocket.connect(addr);
         }
 

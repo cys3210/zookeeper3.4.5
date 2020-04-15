@@ -249,7 +249,9 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
         SocketChannel sock;
         sock = SocketChannel.open();
         sock.configureBlocking(false);
+        // 待数据发送完毕后再close
         sock.socket().setSoLinger(false, -1);
+        // 关掉nagle算法
         sock.socket().setTcpNoDelay(true);
         return sock;
     }
@@ -265,6 +267,7 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
         sockKey = sock.register(selector, SelectionKey.OP_CONNECT);
         boolean immediateConnect = sock.connect(addr);
         if (immediateConnect) {
+            // 处理连接（建立session, ）
             sendThread.primeConnection();
         }
     }
