@@ -77,7 +77,7 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
                 if (incomingBuffer == lenBuffer) {
                     recvCount++;
                     readLength();
-                } else if (!initialized) {
+                } else if (!initialized) {  // 第一次连接上还没有初始化
                     readConnectResult();
                     enableRead();
                     if (findSendablePacket(outgoingQueue,
