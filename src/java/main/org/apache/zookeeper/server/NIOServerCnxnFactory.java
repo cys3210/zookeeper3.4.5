@@ -88,7 +88,9 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory implements Runnable 
 
         thread = new Thread(this, "NIOServerCxn.Factory:" + addr);
         thread.setDaemon(true);
+        // 最大客户端连接数
         maxClientCnxns = maxcc;
+        // serverSocketChannel
         this.ss = ServerSocketChannel.open();
         ss.socket().setReuseAddress(true);
         LOG.info("binding to port " + addr);
@@ -200,6 +202,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory implements Runnable 
                             LOG.info("Accepted socket connection from "
                                      + sc.socket().getRemoteSocketAddress());
                             sc.configureBlocking(false);
+                            // 当前通道注册可读事件
                             SelectionKey sk = sc.register(selector,
                                     SelectionKey.OP_READ);
                             // 更具当前的socketChannel和selectionKey创建一个cnxn

@@ -340,6 +340,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         }
         long id = cnxn.getSessionId();
         int to = cnxn.getSessionTimeout();
+        // 创建或更新一个session
         if (!sessionTracker.touchSession(id, to)) {
             throw new MissingSessionException(
                     "No session with sessionid 0x" + Long.toHexString(id)
@@ -645,9 +646,12 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
             }
         }
         try {
-            touch(si.cnxn);
+            touch(si.cnxn); // 创建/更新/验证session
             boolean validpacket = Request.isValid(si.type);
             if (validpacket) {
+                // 开始处理客户端的请求
+                // leader PrepRequestProcessor
+                // follower FollowerRequestProcessor
                 firstProcessor.processRequest(si);
                 if (si.cnxn != null) {
                     incInProcess();
@@ -779,6 +783,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
     public void processConnectRequest(ServerCnxn cnxn, ByteBuffer incomingBuffer) throws IOException {
         BinaryInputArchive bia = BinaryInputArchive.getArchive(new ByteBufferInputStream(incomingBuffer));
         ConnectRequest connReq = new ConnectRequest();
+        // 反序列化出 connectRequest
         connReq.deserialize(bia, "connect");
         if (LOG.isDebugEnabled()) {
             LOG.debug("Session establishment request from client "
@@ -869,7 +874,9 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         // Through the magic of byte buffers, txn will not be
         // pointing
         // to the start of the txn
+        // 分割出incomingBuffer的剩余部分
         incomingBuffer = incomingBuffer.slice();
+        // 认证请求
         if (h.getType() == OpCode.auth) {
             LOG.info("got auth packet " + cnxn.getRemoteSocketAddress());
             AuthPacket authPacket = new AuthPacket();

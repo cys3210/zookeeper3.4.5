@@ -268,16 +268,22 @@ public class PrepRequestProcessor extends Thread implements RequestProcessor {
                 return;
             }
         }
+        // 遍历当前的acl
         for (ACL a : acl) {
+            // 得到当前acl的id
             Id id = a.getId();
+            // 判断当前acl的权限是否匹配指定权限
             if ((a.getPerms() & perm) != 0) {
+                // 当前acl的id就是代表所有人，即所有人都能够访问
                 if (id.getScheme().equals("world")
                         && id.getId().equals("anyone")) {
                     return;
                 }
+                // 得到指定认证方案的认证器
                 AuthenticationProvider ap = ProviderRegistry.getProvider(id
                         .getScheme());
                 if (ap != null) {
+                    // 判断当前请求的认证id是否匹配对应节点的acl的id
                     for (Id authId : ids) {                        
                         if (authId.getScheme().equals(id.getScheme())
                                 && ap.matches(authId.getId(), id.getId())) {
@@ -307,11 +313,13 @@ public class PrepRequestProcessor extends Thread implements RequestProcessor {
                                     zks.getTime(), type);
 
         switch (type) {
-            case OpCode.create:                
+            case OpCode.create:
+                // 验证session的可用性
                 zks.sessionTracker.checkSession(request.sessionId, request.getOwner());
                 CreateRequest createRequest = (CreateRequest)record;   
                 if(deserialize)
                     ByteBufferInputStream.byteBuffer2Record(request.request, createRequest);
+                // 路径
                 String path = createRequest.getPath();
                 int lastSlash = path.lastIndexOf('/');
                 if (lastSlash == -1 || path.indexOf('\0') != -1 || failCreate) {
@@ -319,21 +327,27 @@ public class PrepRequestProcessor extends Thread implements RequestProcessor {
                             Long.toHexString(request.sessionId));
                     throw new KeeperException.BadArgumentsException(path);
                 }
+                // acl
                 List<ACL> listACL = removeDuplicates(createRequest.getAcl());
                 if (!fixupACL(request.authInfo, listACL)) {
                     throw new KeeperException.InvalidACLException(path);
                 }
+                // 得到父节点最后变更记录, acl,stat,zxid,childCount
                 String parentPath = path.substring(0, lastSlash);
                 ChangeRecord parentRecord = getRecordForPath(parentPath);
-
+                // 检测当前创建节点请求有没有其父节点的create权限
                 checkACL(zks, parentRecord.acl, ZooDefs.Perms.CREATE,
                         request.authInfo);
+                // 父节点当前create的版本号
                 int parentCVersion = parentRecord.stat.getCversion();
+                // 节点创建模式：持久/临时/持久顺序/临时顺序
                 CreateMode createMode =
                     CreateMode.fromFlag(createRequest.getFlags());
+                // 顺序节点，十位的整数,位数不够0补足
                 if (createMode.isSequential()) {
                     path = path + String.format(Locale.ENGLISH, "%010d", parentCVersion);
                 }
+                // 验证路径的合法性
                 try {
                     PathUtils.validatePath(path);
                 } catch(IllegalArgumentException ie) {
@@ -341,6 +355,7 @@ public class PrepRequestProcessor extends Thread implements RequestProcessor {
                             Long.toHexString(request.sessionId));
                     throw new KeeperException.BadArgumentsException(path);
                 }
+                // 验证此节点的路径是否存在
                 try {
                     if (getRecordForPath(path) != null) {
                         throw new KeeperException.NodeExistsException(path);
@@ -348,22 +363,28 @@ public class PrepRequestProcessor extends Thread implements RequestProcessor {
                 } catch (KeeperException.NoNodeException e) {
                     // ignore this one
                 }
+                // 临时节点不允许创建子节点
                 boolean ephemeralParent = parentRecord.stat.getEphemeralOwner() != 0;
                 if (ephemeralParent) {
                     throw new KeeperException.NoChildrenForEphemeralsException(path);
                 }
+                // 新的CVersion
                 int newCversion = parentRecord.stat.getCversion()+1;
+                // 创建代表create操作的事务
                 request.txn = new CreateTxn(path, createRequest.getData(),
                         listACL,
                         createMode.isEphemeral(), newCversion);
+                // 节点信息统计
                 StatPersisted s = new StatPersisted();
                 if (createMode.isEphemeral()) {
                     s.setEphemeralOwner(request.sessionId);
                 }
+                // 更新父节点的变更记录
                 parentRecord = parentRecord.duplicate(request.hdr.getZxid());
                 parentRecord.childCount++;
                 parentRecord.stat.setCversion(newCversion);
                 addChangeRecord(parentRecord);
+                // 更新当前节点的变更记录
                 addChangeRecord(new ChangeRecord(request.hdr.getZxid(), path, s,
                         0, listACL));
                 break;
@@ -691,7 +712,7 @@ public class PrepRequestProcessor extends Thread implements RequestProcessor {
         while (it.hasNext()) {
             ACL a = it.next();
             Id id = a.getId();
-            if (id.getScheme().equals("world") && id.getId().equals("anyone")) {
+            if (id.getScheme().equals("world") && id.getId().equals("anyone")) {    // 默认
                 // wide open
             } else if (id.getScheme().equals("auth")) {
                 // This is the "auth" id, so we have to expand it to the

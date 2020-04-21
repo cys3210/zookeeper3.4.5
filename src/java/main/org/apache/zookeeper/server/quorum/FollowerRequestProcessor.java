@@ -66,6 +66,7 @@ public class FollowerRequestProcessor extends Thread implements
                 // We want to queue the request to be processed before we submit
                 // the request to the leader so that we are ready to receive
                 // the response
+                // 加到下一个处理器的queuedRequests中并等待响应,默认为CommitProcessor
                 nextProcessor.processRequest(request);
                 
                 // We now ship the request to the leader. As with all
@@ -73,6 +74,7 @@ public class FollowerRequestProcessor extends Thread implements
                 // path, but different from others, we need to keep track
                 // of the sync operations this follower has pending, so we
                 // add it to pendingSyncs.
+                // 向leader发送请求
                 switch (request.type) {
                 case OpCode.sync:
                     zks.pendingSyncs.add(request);

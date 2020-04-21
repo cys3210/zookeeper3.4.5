@@ -100,6 +100,7 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
         }
         if (sockKey.isWritable()) {
             synchronized(outgoingQueue) {
+                // 找到第一个可发送的数据包
                 Packet p = findSendablePacket(outgoingQueue,
                         cnxn.sendThread.clientTunneledAuthenticationInProgress());
 
@@ -110,11 +111,15 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
                         if ((p.requestHeader != null) &&
                                 (p.requestHeader.getType() != OpCode.ping) &&
                                 (p.requestHeader.getType() != OpCode.auth)) {
+                            // 得到当前的xid
                             p.requestHeader.setXid(cnxn.getXid());
                         }
+                        // 当前packet创建一个byteBuffer准备发送
                         p.createBB();
                     }
+                    // 发送数据
                     sock.write(p.bb);
+                    // 整个包都已经发送完毕, 从outgoing移除，加入到pendingQueue
                     if (!p.bb.hasRemaining()) {
                         sentCount++;
                         outgoingQueue.removeFirstOccurrence(p);
@@ -267,7 +272,7 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
         sockKey = sock.register(selector, SelectionKey.OP_CONNECT);
         boolean immediateConnect = sock.connect(addr);
         if (immediateConnect) {
-            // 处理连接（建立session, ）
+            // 处理连接（建立session）
             sendThread.primeConnection();
         }
     }
@@ -347,6 +352,7 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
         // non blocking, so time is effectively a constant. That is
         // Why we just have to do this once, here
         updateNow();
+        // 处理网络io,发送接收数据
         for (SelectionKey k : selected) {
             SocketChannel sc = ((SocketChannel) k.channel());
             if ((k.readyOps() & SelectionKey.OP_CONNECT) != 0) {
@@ -358,8 +364,10 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
                 doIO(pendingQueue, outgoingQueue, cnxn);
             }
         }
+        // 处理发送的数据
         if (sendThread.getZkState().isConnected()) {
             synchronized(outgoingQueue) {
+                // 如果找到一个可以发送的packet，注册write
                 if (findSendablePacket(outgoingQueue,
                         cnxn.sendThread.clientTunneledAuthenticationInProgress()) != null) {
                     enableWrite();
@@ -379,6 +387,7 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
     @Override
     synchronized void enableWrite() {
         int i = sockKey.interestOps();
+        // 若当前不是writeable, 注册可写
         if ((i & SelectionKey.OP_WRITE) == 0) {
             sockKey.interestOps(i | SelectionKey.OP_WRITE);
         }

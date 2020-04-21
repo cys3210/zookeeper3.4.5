@@ -47,9 +47,12 @@ public class ReadOnlyZooKeeperServer extends QuorumZooKeeperServer {
 
     @Override
     protected void setupRequestProcessors() {
+        // final
         RequestProcessor finalProcessor = new FinalRequestProcessor(this);
         RequestProcessor prepProcessor = new PrepRequestProcessor(this, finalProcessor);
         ((PrepRequestProcessor) prepProcessor).start();
+
+        // first
         // 只读处理器，会丢弃状态变更请求
         firstProcessor = new ReadOnlyRequestProcessor(this, prepProcessor);
         ((ReadOnlyRequestProcessor) firstProcessor).start();

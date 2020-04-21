@@ -197,8 +197,10 @@ public class NIOServerCnxn extends ServerCnxn {
             packetReceived();
             incomingBuffer.flip();
             if (!initialized) {
+                // 刚连接还没有初始化
                 readConnectRequest();
             } else {
+                // 读取客户端的请求
                 readRequest();
             }
             lenBuffer.clear();
@@ -269,6 +271,7 @@ public class NIOServerCnxn extends ServerCnxn {
                     ByteBuffer directBuffer = factory.directBuffer;
                     directBuffer.clear();
 
+                    // 将outgoingBuffer加入到directBuffer中, 一次性发送提高效率
                     for (ByteBuffer b : outgoingBuffers) {
                         if (directBuffer.remaining() < b.remaining()) {
                             /*

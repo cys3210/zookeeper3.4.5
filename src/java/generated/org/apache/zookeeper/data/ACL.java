@@ -21,8 +21,9 @@ package org.apache.zookeeper.data;
 
 import org.apache.jute.*;
 public class ACL implements Record {
-  private int perms;
-  private org.apache.zookeeper.data.Id id;
+  // acl就是指定认证方案的id所拥有的权限
+  private int perms;  // 权限类型 read/write/create/delete/admin/all
+  private org.apache.zookeeper.data.Id id;  // 认证标识,包括认证方案(scheme)和认证方案所需要的认证数据(id)
   public ACL() {
   }
   public ACL(

@@ -116,11 +116,13 @@ public class ClientCnxn {
 
     /**
      * These are the packets that have been sent and are waiting for a response.
+     * 已经发送的请求，等待响应
      */
     private final LinkedList<Packet> pendingQueue = new LinkedList<Packet>();
 
     /**
      * These are the packets that need to be sent.
+     * 待发送的请求
      */
     private final LinkedList<Packet> outgoingQueue = new LinkedList<Packet>();
 
@@ -277,6 +279,7 @@ public class ClientCnxn {
             try {
                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
                 BinaryOutputArchive boa = BinaryOutputArchive.getArchive(baos);
+                // 提前占一个int，4个字节之后用来写长度
                 boa.writeInt(-1, "len"); // We'll fill this in later
                 if (requestHeader != null) {
                     requestHeader.serialize(boa, "header");
@@ -289,8 +292,11 @@ public class ClientCnxn {
                     request.serialize(boa, "request");
                 }
                 baos.close();
+                // 根据数据创建一个ByteBuffer
                 this.bb = ByteBuffer.wrap(baos.toByteArray());
+                // 头四个字节代表当前这个数据包的长度
                 this.bb.putInt(this.bb.capacity() - 4);
+                // position归0
                 this.bb.rewind();
             } catch (IOException e) {
                 LOG.warn("Ignoring unexpected exception", e);
@@ -460,6 +466,7 @@ public class ClientCnxn {
             sessionState = event.getState();
 
             // materialize the watchers based on the event
+            // 获得对当前event监听的所有watcher
             WatcherSetEventPair pair = new WatcherSetEventPair(
                     watcher.materialize(event.getState(), event.getType(),
                             event.getPath()),
@@ -488,10 +495,12 @@ public class ClientCnxn {
            try {
               isRunning = true;
               while (true) {
+                  // 从队列中取出event
                  Object event = waitingEvents.take();
                  if (event == eventOfDeath) {
                     wasKilled = true;
                  } else {
+                     // 处理event
                     processEvent(event);
                  }
                  if (wasKilled)
@@ -511,17 +520,19 @@ public class ClientCnxn {
 
        private void processEvent(Object event) {
           try {
+              // 一般的zk事件通知
               if (event instanceof WatcherSetEventPair) {
                   // each watcher will process the event
                   WatcherSetEventPair pair = (WatcherSetEventPair) event;
                   for (Watcher watcher : pair.watchers) {
                       try {
+                          // 通知所有watcher
                           watcher.process(pair.event);
                       } catch (Throwable t) {
                           LOG.error("Error while calling watcher ", t);
                       }
                   }
-              } else {
+              } else {  // zk异步请求的回调处理
                   Packet p = (Packet) event;
                   int rc = 0;
                   String clientPath = p.clientPath;
@@ -719,6 +730,7 @@ public class ClientCnxn {
                 }
                 return;
             }
+            // 处理auth
             if (replyHdr.getXid() == -4) {
                 // -4 is the xid for AuthPacket               
                 if(replyHdr.getErr() == KeeperException.Code.AUTHFAILED.intValue()) {
@@ -732,6 +744,7 @@ public class ClientCnxn {
                 }
                 return;
             }
+            // 处理通知
             if (replyHdr.getXid() == -1) {
                 // -1 means notification
                 if (LOG.isDebugEnabled()) {
@@ -744,9 +757,9 @@ public class ClientCnxn {
                 // convert from a server path to a client path
                 if (chrootPath != null) {
                     String serverPath = event.getPath();
-                    if(serverPath.compareTo(chrootPath)==0)
+                    if(serverPath.compareTo(chrootPath)==0) // 根路径
                         event.setPath("/");
-                    else if (serverPath.length() > chrootPath.length())
+                    else if (serverPath.length() > chrootPath.length()) // 与跟路径的相对路径
                         event.setPath(serverPath.substring(chrootPath.length()));
                     else {
                     	LOG.warn("Got server path " + event.getPath()
@@ -754,13 +767,13 @@ public class ClientCnxn {
                     			+ chrootPath);
                     }
                 }
-
+                // watch事件
                 WatchedEvent we = new WatchedEvent(event);
                 if (LOG.isDebugEnabled()) {
                     LOG.debug("Got " + we + " for sessionid 0x"
                             + Long.toHexString(sessionId));
                 }
-
+                // 提交到event处理线程
                 eventThread.queueEvent( we );
                 return;
             }
@@ -782,6 +795,7 @@ public class ClientCnxn {
                     throw new IOException("Nothing in the queue, but got "
                             + replyHdr.getXid());
                 }
+                // 收到响应，移除队列中正在等待响应的请求
                 packet = pendingQueue.remove();
             }
             /*
@@ -985,6 +999,7 @@ public class ClientCnxn {
             long lastPingRwServer = System.currentTimeMillis();
             while (state.isAlive()) {
                 try {
+                    // 连接socket
                     if (!clientCnxnSocket.isConnected()) {
                         if(!isFirstConnect){
                             try {
@@ -1190,6 +1205,7 @@ public class ClientCnxn {
                 byte[] _sessionPasswd, boolean isRO) throws IOException {
             negotiatedSessionTimeout = _negotiatedSessionTimeout;
             if (negotiatedSessionTimeout <= 0) {
+                // session过期
                 state = States.CLOSED;
 
                 eventThread.queueEvent(new WatchedEvent(
@@ -1218,6 +1234,7 @@ public class ClientCnxn {
                     + (isRO ? " (READ-ONLY mode)" : ""));
             KeeperState eventState = (isRO) ?
                     KeeperState.ConnectedReadOnly : KeeperState.SyncConnected;
+            // 通知watcher
             eventThread.queueEvent(new WatchedEvent(
                     Watcher.Event.EventType.None,
                     eventState, null));
@@ -1309,6 +1326,7 @@ public class ClientCnxn {
             Record response, WatchRegistration watchRegistration)
             throws InterruptedException {
         ReplyHeader r = new ReplyHeader();
+        // 加到outgoingQueue等待发送
         Packet packet = queuePacket(h, r, request, response, null, null, null,
                     null, watchRegistration);
         synchronized (packet) {

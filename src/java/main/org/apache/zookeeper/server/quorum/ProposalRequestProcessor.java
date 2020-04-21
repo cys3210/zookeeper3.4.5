@@ -73,6 +73,7 @@ public class ProposalRequestProcessor implements RequestProcessor {
         } else {
                 nextProcessor.processRequest(request);
             if (request.hdr != null) {
+                // 就所有的事务都需要进行zk集群内的同步广播
                 // We need to sync and get consensus on any transactions
                 try {
                     zks.getLeader().propose(request);

@@ -131,6 +131,7 @@ public class QuorumPeerMain {
       LOG.info("Starting quorum peer");
       try {
           // 默认 nio server, 可以使用 netty server
+          // 负责和zk客户端通信, zk服务端连接处理组件
           ServerCnxnFactory cnxnFactory = ServerCnxnFactory.createFactory();
           cnxnFactory.configure(config.getClientPortAddress(),
                                 config.getMaxClientCnxns());

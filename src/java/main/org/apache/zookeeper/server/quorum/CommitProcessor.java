@@ -18,14 +18,14 @@
 
 package org.apache.zookeeper.server.quorum;
 
-import java.util.ArrayList;
-import java.util.LinkedList;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.apache.zookeeper.ZooDefs.OpCode;
 import org.apache.zookeeper.server.Request;
 import org.apache.zookeeper.server.RequestProcessor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.ArrayList;
+import java.util.LinkedList;
 
 /**
  * This RequestProcessor matches the incoming committed requests with the
@@ -38,15 +38,19 @@ public class CommitProcessor extends Thread implements RequestProcessor {
 
     /**
      * Requests that we are holding until the commit comes in.
+     * 待提交的请求
      */
     LinkedList<Request> queuedRequests = new LinkedList<Request>();
 
     /**
      * Requests that have been committed.
+     * 已提交的请求
      */
     LinkedList<Request> committedRequests = new LinkedList<Request>();
 
+    // 下一个处理器
     RequestProcessor nextProcessor;
+    // 已提交的请求，待下一个处理器处理
     ArrayList<Request> toProcess = new ArrayList<Request>();
 
     /**
@@ -69,12 +73,14 @@ public class CommitProcessor extends Thread implements RequestProcessor {
         try {
             Request nextPending = null;            
             while (!finished) {
+                // 处理toProcess中提交完毕的请求
                 int len = toProcess.size();
                 for (int i = 0; i < len; i++) {
                     nextProcessor.processRequest(toProcess.get(i));
                 }
                 toProcess.clear();
                 synchronized (this) {
+                    // 等待请求提交
                     if ((queuedRequests.size() == 0 || nextPending != null)
                             && committedRequests.size() == 0) {
                         wait();
@@ -82,6 +88,7 @@ public class CommitProcessor extends Thread implements RequestProcessor {
                     }
                     // First check and see if the commit came in for the pending
                     // request
+                    // 处理已经提交的请求, 加到toProcess队列中
                     if ((queuedRequests.size() == 0 || nextPending != null)
                             && committedRequests.size() > 0) {
                         Request r = committedRequests.remove();
@@ -117,6 +124,7 @@ public class CommitProcessor extends Thread implements RequestProcessor {
 
                 synchronized (this) {
                     // Process the next requests in the queuedRequests
+                    // 处理 queuedRequests
                     while (nextPending == null && queuedRequests.size() > 0) {
                         Request request = queuedRequests.remove();
                         switch (request.type) {
@@ -130,7 +138,7 @@ public class CommitProcessor extends Thread implements RequestProcessor {
                             nextPending = request;
                             break;
                         case OpCode.sync:
-                            if (matchSyncs) {
+                            if (matchSyncs) {   // followerZookeeperServer matchSyncs为true
                                 nextPending = request;
                             } else {
                                 toProcess.add(request);
