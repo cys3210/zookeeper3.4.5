@@ -110,7 +110,7 @@ public class SyncRequestProcessor extends Thread implements RequestProcessor {
                     // track the number of records written to the log
                     if (zks.getZKDatabase().append(si)) {
                         logCount++;
-                        // 开始快照, 默认100000条左右
+                        // 开始快照, 默认100000条左右, 使用随机生成的值避免所有的server一起开始快照
                         if (logCount > (snapCount / 2 + randRoll)) {
                             randRoll = r.nextInt(snapCount/2);
                             // roll the log
